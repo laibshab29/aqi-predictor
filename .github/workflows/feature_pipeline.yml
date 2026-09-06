@@ -1,0 +1,36 @@
+name: Feature Pipeline (hourly)
+
+# Runs feature_pipeline.py every hour, and commits the updated CSV back
+# to the repo so it acts as our "feature store" until Hopsworks is wired in.
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # every hour, on the hour
+  workflow_dispatch:        # lets you also trigger it manually from GitHub UI
+
+jobs:
+  run-feature-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run feature pipeline
+        run: python feature_pipeline.py
+        # No AQICN_TOKEN secret needed -- feature_pipeline.py uses
+        # Open-Meteo's free, no-key API for both live and historical data.
+
+      - name: Commit updated features.csv
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/features.csv
+          git diff --quiet && git diff --staged --quiet || git commit -m "Automated: append hourly feature row"
+          git push
