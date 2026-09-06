@@ -7,7 +7,7 @@ a trained ML model, and a Streamlit dashboard.
 ## Architecture
 
 ```
-AQICN API --> feature_pipeline.py --> data/features.csv (feature store)
+Open-Meteo API --> feature_pipeline.py --> data/features.csv (feature store)
                                               |
                                               v
                                    training_pipeline.py
@@ -53,9 +53,10 @@ you full control over the date range instead of a fixed snapshot.
 if Open-Meteo is ever down before a deadline) but is no longer the
 primary data source — prefer `backfill_openmeteo.py`.
 
-The live pipeline (`feature_pipeline.py`, automated hourly via AQICN,
-via GitHub Actions) keeps collecting fresh real readings going forward,
-so the daily retraining job trains on a growing real dataset over time.
+The live pipeline (`feature_pipeline.py`, run hourly via GitHub Actions,
+using the same Open-Meteo APIs) keeps collecting fresh real readings
+going forward, so the daily retraining job trains on a growing real
+dataset over time.
 
 ## How to run it yourself
 
@@ -104,10 +105,12 @@ streamlit run app.py
 ## Model evaluation
 
 See `models/metrics_report.json` after running `training_pipeline.py`
-for full RMSE / MAE / R² numbers per horizon and model type. Random
-Forest outperformed Ridge Regression at all three horizons in initial
-testing on synthetic data, likely because it captures the non-linear
-rush-hour / seasonal patterns better than a linear model.
+for full RMSE / MAE / R² numbers per horizon and model type, and see
+`AQI_Predictor_Report.pdf` for the full write-up. In testing on real
+Karachi data (23,496 hourly records), Random Forest outperformed Ridge
+Regression at the 24-hour horizon (R² = 0.52 vs 0.51), while Ridge's
+simpler linear assumptions actually generalized slightly better at the
+48h and 72h horizons, where both models' accuracy drops substantially.
 
 ## Extending to a real Feature Store / Model Registry
 
@@ -126,13 +129,16 @@ but isn't literally Hopsworks/Vertex AI. To upgrade:
 
 ## Known limitations / future work
 
-- Training data is currently synthetic-bootstrapped (see note above).
+- Forecast accuracy degrades substantially beyond 24 hours (see the PDF
+  report for full metrics) — the models only see present-hour weather,
+  not a real forecast for the target time. Incorporating Open-Meteo's
+  weather *forecast* endpoint as an input for the 48h/72h models is the
+  most promising next step.
 - Only Ridge and Random Forest are compared; a deep learning model
   (e.g. an LSTM over the hourly sequence) could be added for the
   "advanced models" requirement.
-- Weather features come from AQICN's `iaqi` block, which has sparser
-  weather coverage than a dedicated weather API — OpenWeather could be
-  merged in for more reliable temperature/humidity/wind data.
+- No lag/rolling features yet (e.g. AQI trend over the past 6-24 hours),
+  which would likely help medium-range accuracy.
 - No EDA notebook is included yet — recommended next step: a Jupyter
   notebook plotting AQI over time, by hour-of-day, and by month, to
   visually confirm the patterns the model is learning.
